@@ -8,7 +8,7 @@ test('inventory workflow persists items and activity across reloads', async ({ p
   await page.getByRole('button', { name: 'Add item', exact: true }).click();
   const inventory = page.getByRole('region', { name: 'Inventory' });
   await expect(inventory.getByText('2 kg', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Consume 1 kg of Rice', exact: true }).click();
+  await page.getByRole('button', { name: 'Consume Rice', exact: true }).click();
   await expect(inventory.getByText('1 kg', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Restore 1 kg of Rice', exact: true }).click();
   await page.getByRole('button', { name: 'Edit Rice', exact: true }).click();
@@ -36,7 +36,7 @@ test('negative quantities are rejected and empty items cannot be consumed', asyn
   await expect(page.getByRole('heading', { name: 'Milk', exact: true })).toHaveCount(0);
   await page.getByLabel('Quantity', { exact: true }).fill('0');
   await page.getByRole('button', { name: 'Add item', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Consume 1 each of Milk', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Consume Milk', exact: true })).toBeDisabled();
 });
 
 test('invalid saved data is preserved and reported', async ({ page }) => {

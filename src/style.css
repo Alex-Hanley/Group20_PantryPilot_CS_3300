@@ -33,3 +33,7 @@ ul { list-style: none; padding: 0; }
 time { flex-shrink: 0; }
 .error { padding: 16px; color: #922b21; background: #fff0ed; border-radius: 6px; }
 @media (max-width: 600px) { main { padding: 24px 16px; } section { padding: 20px; } .section-heading { display: block; } .section-heading h2 { margin-bottom: 20px; } .history li { flex-direction: column; gap: 6px; } }
+.consume-form { display: flex; gap: 8px; align-items: end; }
+.consume-form label { flex: 0 1 100px; }
+.consume-amount { max-width: 100px; }
+.actions { align-items: end; }
