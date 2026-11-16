@@ -32,6 +32,7 @@ function App() {
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
 
   function commit(items: Item[], text: string) {
     if (initial.error) return false;
@@ -61,6 +62,24 @@ function App() {
     if (commit(items, `${editing ? 'Updated' : 'Added'} ${item.name}: ${quantity} ${item.unit}`)) {
       setEditing(null);
       setForm(blank);
+    }
+  }
+
+  function consume(item: Item) {
+    const raw = (amounts[item.id] ?? '1').trim();
+    const amount = Number(raw);
+    if (!raw || !Number.isFinite(amount) || amount <= 0) {
+      setError('Enter a positive amount to consume.');
+      return;
+    }
+    if (amount > item.quantity) {
+      setError(`Cannot consume more than ${item.quantity} ${item.unit} of ${item.name}.`);
+      return;
+    }
+    const quantity = Number((item.quantity - amount).toPrecision(15));
+    if (commit(pantry.items.map(i => i.id === item.id ? { ...i, quantity } : i),
+      `Consumed ${amount} ${item.unit} of ${item.name}`)) {
+      setAmounts(current => ({ ...current, [item.id]: '1' }));
     }
   }
 
@@ -99,7 +118,15 @@ function App() {
           <div><h3>{item.name}</h3><p>{item.category || 'Uncategorized'} · {item.location}</p></div>
           <strong>{item.quantity} {item.unit}</strong>
           <div className="actions">
-            <button className="secondary" disabled={item.quantity < 1 || Boolean(initial.error)} onClick={() => adjust(item, -1)} aria-label={`Consume 1 ${item.unit} of ${item.name}`}>Consume 1</button>
+            <form className="consume-form" onSubmit={event => { event.preventDefault(); consume(item); }}>
+              <label>Amount ({item.unit})
+                <input className="consume-amount" inputMode="decimal" aria-label={`Amount to consume for ${item.name}`}
+                  value={amounts[item.id] ?? '1'} disabled={item.quantity === 0 || Boolean(initial.error)}
+                  onChange={event => setAmounts(current => ({ ...current, [item.id]: event.target.value }))} />
+              </label>
+              <button className="secondary" type="submit" disabled={item.quantity === 0 || Boolean(initial.error)}
+                aria-label={`Consume ${item.name}`}>Consume</button>
+            </form>
             <button className="secondary" onClick={() => adjust(item, 1)} aria-label={`Restore 1 ${item.unit} of ${item.name}`}>Restore 1</button>
             <button className="secondary" onClick={() => { setEditing(item.id); setForm({ ...item, quantity: String(item.quantity) }); }} aria-label={`Edit ${item.name}`}>Edit</button>
             <button className="secondary" onClick={() => {
@@ -109,7 +136,7 @@ function App() {
             }} aria-label={`Remove ${item.name}`}>Remove</button>
           </div>
         </li>)}</ul>}
-      <small>Consume and restore adjust by one unit. Use Edit for other quantities.</small>
+      <small>Enter an amount to consume in the item’s unit. Restore adds one unit.</small>
     </section>
     <section aria-labelledby="activity-heading"><h2 id="activity-heading">Activity</h2>
       {pantry.history.length ? <ul className="history">{pantry.history.map(entry => <li key={entry.id}>

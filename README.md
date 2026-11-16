@@ -20,10 +20,15 @@ Open the local URL printed by Vite.
 
 - Add and edit items with quantity, unit, category, and storage location.
 - Search by name, category, or location.
-- Consume or restore one unit; edit for fractional or larger adjustments.
+- Consume a positive custom quantity, including decimals, up to the amount in stock.
+- Restore one unit; edit for other inventory adjustments.
 - Remove items with confirmation and review the activity history.
 - Keep inventory and history across reloads using browser local storage.
 
+Consumption rejects blank, nonnumeric, non-finite, zero, negative, and over-stock amounts.
+Successful consumption records the amount and unit in activity history. Decimal
+remainders are normalized to 15 significant digits for ordinary pantry quantities;
+this prototype is not intended for arbitrary-precision measurement.
 Quantities cannot be negative. Items begin empty; no sample data is inserted.
 This is a single-browser prototype, not the complete shared-household MMF.
 Data is not synchronized between tabs, devices, or users. Clearing browser
@@ -40,4 +45,4 @@ npm test
 
 The build type-checks TypeScript and creates the production bundle in `dist/`.
 Browser tests cover the inventory workflow, reload persistence, quantity
-validation, and invalid saved data.
+validation, decimal remainders, failed storage writes, and invalid saved data.
