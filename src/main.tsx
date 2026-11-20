@@ -115,19 +115,21 @@ function App() {
         <label>Search pantry<input type="search" placeholder="Name, category, or location" value={query} onChange={e => setQuery(e.target.value)} /></label></div>
       {visible.length === 0 ? <p className="empty">{pantry.items.length ? 'No matching items.' : 'Your pantry is empty. Add your first item above.'}</p> :
         <ul className="inventory">{visible.map(item => <li key={item.id}>
-          <div><h3>{item.name}</h3><p>{item.category || 'Uncategorized'} · {item.location}</p></div>
+        <div><h3>{item.name}</h3><p>{item.category || 'Uncategorized'} · {item.location}</p>
+          {editing === item.id && <p className="editing-note">Editing. Save or cancel to consume or restore.</p>}</div>
           <strong>{item.quantity} {item.unit}</strong>
           <div className="actions">
             <form className="consume-form" onSubmit={event => { event.preventDefault(); consume(item); }}>
               <label>Amount ({item.unit})
                 <input className="consume-amount" inputMode="decimal" aria-label={`Amount to consume for ${item.name}`}
-                  value={amounts[item.id] ?? '1'} disabled={item.quantity === 0 || Boolean(initial.error)}
+                  value={amounts[item.id] ?? '1'} disabled={item.quantity === 0 || Boolean(initial.error) || editing === item.id}
                   onChange={event => setAmounts(current => ({ ...current, [item.id]: event.target.value }))} />
               </label>
-              <button className="secondary" type="submit" disabled={item.quantity === 0 || Boolean(initial.error)}
+                <button className="secondary" type="submit" disabled={item.quantity === 0 || Boolean(initial.error) || editing === item.id}
                 aria-label={`Consume ${item.name}`}>Consume</button>
             </form>
-            <button className="secondary" onClick={() => adjust(item, 1)} aria-label={`Restore 1 ${item.unit} of ${item.name}`}>Restore 1</button>
+            <button className="secondary" onClick={() => adjust(item, 1)} disabled={editing === item.id}
+              aria-label={`Restore 1 ${item.unit} of ${item.name}`}>Restore 1</button>
             <button className="secondary" onClick={() => { setEditing(item.id); setForm({ ...item, quantity: String(item.quantity) }); }} aria-label={`Edit ${item.name}`}>Edit</button>
             <button className="secondary" onClick={() => {
               if (window.confirm(`Remove ${item.name} from the pantry?`) && commit(pantry.items.filter(i => i.id !== item.id), `Removed ${item.name}`) && editing === item.id) {
