@@ -37,3 +37,4 @@ time { flex-shrink: 0; }
 .consume-form label { flex: 0 1 100px; }
 .consume-amount { max-width: 100px; }
 .actions { align-items: end; }
+.inventory .editing-note { margin-top: 4px; color: #7a5a12; }
