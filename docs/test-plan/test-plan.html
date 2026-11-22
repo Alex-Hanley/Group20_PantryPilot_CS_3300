@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Group 20 PantryPilot Test Plan</title>
+<style>
+  @page { size: Letter; margin: 0.75in 0.75in 0.8in; }
+  :root { --green: #1f4d3a; --gold: #b8892b; --line: #c9d3dc; --soft: #f5f7f9; --ink: #1d2430; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.45; margin: 0; background: #fff; }
+  .eyebrow { color: var(--gold); font-weight: 700; letter-spacing: .08em; font-size: 9pt; margin: 0 0 4px; }
+  h1 { color: var(--green); font-size: 22pt; margin: 0 0 4px; }
+  .meta { color: #444; font-size: 10pt; padding-bottom: 10px; border-bottom: 3px solid var(--green); margin-bottom: 14px; }
+  h2 { color: var(--green); font-size: 15pt; border-bottom: 1px solid var(--line); padding-bottom: 3px; margin: 22px 0 8px; break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 14px 0 6px; break-after: avoid; }
+  h4 { font-size: 10.5pt; margin: 12px 0 6px; break-after: avoid; }
+  p { margin: 6px 0; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  code { font-family: Menlo, Consolas, monospace; font-size: 8.6pt; background: #eef1f4; padding: 0 3px; border-radius: 3px; }
+  pre { font-family: Menlo, Consolas, monospace; font-size: 7.4pt; background: var(--soft); border: 1px solid #e1e6eb; padding: 5px; margin: 0; white-space: pre-wrap; word-break: break-word; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 8.8pt; }
+  th { background: var(--green); color: #fff; text-align: left; padding: 6px; vertical-align: bottom; }
+  td { border: 1px solid var(--line); padding: 5px 6px; vertical-align: top; }
+  tr { break-inside: avoid; }
+  tbody tr:nth-child(even) td { background: #fafbfc; }
+  td code { font-size: 7.8pt; word-break: break-word; }
+  .pass { color: #2e7d32; font-weight: 700; text-align: center; }
+  .na { color: #888; text-align: center; }
+  .grey td { background: #eceff1 !important; color: #666; }
+  .tag { font-weight: 700; }
+  .page-break { break-before: page; }
+  .small { font-size: 8.8pt; color: #555; }
+</style>
+</head>
+<body>
+
+<p class="eyebrow">CS 3300: INTRODUCTION TO SOFTWARE ENGINEERING · PROJECT 2</p>
+<h1>Test Plan for PantryPilot</h1>
+<div class="meta"><b>Version:</b> 1.1 &nbsp;|&nbsp; <b>Date:</b> November 22, 2026 &nbsp;|&nbsp; <b>Team:</b> Team 20</div>
+
+<h2>1. Introduction</h2>
+<h3>1.1 Overview (Executive Summary)</h3>
+<p><b>PantryPilot</b> is a web application designed to help students, roommates, and small households maintain a shared pantry inventory, prevent food waste through expiration tracking, generate constraint-safe weekly meal plans, and reconcile grocery shopping lists.</p>
+<p>This test plan evaluates the current <b>MMF 1 (Trusted Pantry Inventory)</b> prototype, a responsive single-page application built with React 19, TypeScript, Vite, and browser <code>localStorage</code>. It also sets out the test strategy for the upcoming multi-tier backend (Java 21, Spring Boot, PostgreSQL, and OpenAI structured JSON planning). Specifically, this document verifies core inventory CRUD workflows, floating-point quantity normalization (<code>roundQuantity</code>), input validation, edit-mode action locking, saved-data validation, browser storage fault tolerance, and the non-HTTPS UUID fallback. It also gives a structured comparison of traditional testing (manual equivalence partitioning, hand-written Playwright E2E scripts, and a manual branch trace) with AI-assisted testing (Claude Code and ChatGPT/GPT-4o).</p>
+
+<h3>1.2 Assumptions</h3>
+<ul>
+  <li><b>Runtime &amp; Build Environment:</b> Tests execute on Node.js <code>&gt;= 22.12.0</code> using Vite <code>8.3.8</code> (<code>http://127.0.0.1:5173</code>) and TypeScript <code>7.0.2</code> in strict mode.</li>
+  <li><b>Browser Environment:</b> Automated browser tests execute in headless Chromium via <code>@playwright/test 1.65.1</code>.</li>
+  <li><b>Storage &amp; Scope:</b> The current release (MMF 1 starter) is a single-browser prototype backed by <code>localStorage</code> under the key <code>pantrypilot.inventory.v1</code>. Multi-user authentication, Spring Security household isolation, and PostgreSQL persistence (MMFs 2–6) are scoped for later sprints.</li>
+  <li><b>Floating-Point Representation:</b> Pantry quantities are ordinary household measurements normalized to 15 significant digits (<code>Number(value.toPrecision(15))</code>), not arbitrary-precision decimals.</li>
+  <li><b>White-Box Access Path:</b> <code>src/main.tsx</code> does not export its helper functions, so white-box tests drive specific internal branches through the browser (fault injection, seeded storage, removed browser APIs) rather than calling functions directly. Branch coverage is measured by a manual branch trace (Section 4.3) because no coverage instrumentation is configured for the prototype.</li>
+  <li><b>AI Tool Governance:</b> All AI-generated test cases were executed against the real codebase, verified for compilation (<code>npm run build</code>) and deterministic pass/fail behavior (<code>npm test</code>), and reviewed by a human developer before inclusion.</li>
+</ul>
+
+<h3>1.3 Definitions and Acronyms</h3>
+<table>
+  <thead><tr><th style="width:24%">Term / Acronym</th><th>Definition</th></tr></thead>
+  <tbody>
+    <tr><td><b>MMF</b></td><td>Minimal Marketable Feature; an independently deliverable end-to-end user workflow (MMF 1–6).</td></tr>
+    <tr><td><b>E2E</b></td><td>End-to-End testing that simulates real user interactions in a browser.</td></tr>
+    <tr><td><b>IEEE 754</b></td><td>Standard for floating-point arithmetic, responsible for binary representation artifacts (e.g., <code>0.14 + 1 = 1.1400000000000001</code>).</td></tr>
+    <tr><td><b>DOM / UUID v4</b></td><td>Document Object Model (rendered React UI); Universally Unique Identifier v4 generated via <code>crypto.randomUUID()</code> or the <code>crypto.getRandomValues()</code> fallback.</td></tr>
+    <tr><td><b>Branch outcome</b></td><td>One side (true or false) of a decision in the code. A decision with both outcomes exercised by at least one test is fully covered.</td></tr>
+    <tr><td><b>Mutation check</b></td><td>Deliberately breaking one line of production code and confirming that a test fails, to show the test detects that fault.</td></tr>
+    <tr><td><b>Test # / Requirement</b></td><td>Unique test case identifier (<code>BB-XX</code> Black-Box, <code>WB-XX</code> White-Box) mapped to a traceable MMF requirement.</td></tr>
+    <tr><td><b>Action / Expected / Actual</b></td><td>Concrete test input sequence, deterministic expected state, and observed runtime outcome.</td></tr>
+    <tr><td><b>P / F</b></td><td>Pass (✓) or Fail (F) indicator.</td></tr>
+    <tr><td><b>AI Tool Utilization</b></td><td>Notes on Claude Code or GPT-4o usage for the test, including whether AI did not cover a requirement or was the only source of a test.</td></tr>
+  </tbody>
+</table>
+
+<h3>1.4 References</h3>
+<ol>
+  <li><i>CS3300 Project 2 Topic and MMF Assignment: PantryPilot – Smart Pantry Management and Constraint-Safe Meal Planning</i>, Team 20, Georgia Institute of Technology, Fall 2026.</li>
+  <li><i>Project 2 – AI Integration in Testing Instructions &amp; Rubric</i>, CS 3300: Introduction to Software Engineering, Georgia Institute of Technology, November 2026.</li>
+  <li><i>PantryPilot MMF 1 Source Repository</i> (<code>Group20_PantryPilot_CS_3300</code>): <code>src/main.tsx</code>, <code>tests/*.spec.ts</code>, <code>playwright.config.ts</code>, and pull requests #1–#5, GitHub, November 2026.</li>
+  <li><i>Playwright Documentation (v1.65)</i>, Microsoft Corporation, playwright.dev.</li>
+</ol>
+
+<h3>1.5 Items Not Covered By These Test Cases</h3>
+<ul>
+  <li><b>MMF 2–6 Backend Services &amp; Multi-User Auth:</b> Expiry triage queues, OpenAI structured meal-plan generation, shopping list reconciliation, waste analytics exports, and Spring Security household isolation are not executed in this cycle because the repository currently implements only the MMF 1 frontend prototype.</li>
+  <li><b>Cross-Device / Multi-Tab Sync:</b> Concurrent updates across separate browser tabs are out of scope for the <code>localStorage</code>-backed prototype.</li>
+  <li><b>Visual Regression Across Mobile Viewports:</b> <code>style.css</code> includes a <code>@media (max-width: 600px)</code> breakpoint, but pixel-diff visual regression across iOS Safari and Android Chrome is deferred until staging deployment on GCP Cloud Run.</li>
+  <li><b>Instrumented Coverage Reports:</b> Automated coverage tooling (V8/Istanbul for the frontend, JaCoCo for the Java backend) is deferred; this cycle uses the manual branch trace in Section 4.3.</li>
+</ul>
+
+<h2>2. Quality Control</h2>
+<h3>2.1 Test Plan Quality</h3>
+<ul>
+  <li><b>Requirement-to-Test Traceability:</b> Every test case maps to an explicit MMF 1 acceptance criterion (negative stock prevention, decimal remainder accuracy, edit-mode locking, and persistence across reloads) or to a named branch in <code>src/main.tsx</code>.</li>
+  <li><b>Adversarial &amp; Fault-Injection Verification:</b> Beyond happy-path flows, the plan requires fault injection: overriding <code>Storage.prototype.setItem</code> to throw <code>QuotaExceededError</code>, seeding malformed or structurally invalid JSON into <code>localStorage</code>, and deleting <code>Crypto.prototype.randomUUID</code> to simulate non-HTTPS LAN origins.</li>
+  <li><b>Tests Must Detect Faults:</b> Key tests are mutation-checked. For example, removing <code>&amp;&amp; i.quantity &gt;= 0</code> from <code>load()</code> makes WB-05 fail, and restoring it makes it pass.</li>
+  <li><b>Human Audit of AI-Generated Tests:</b> Every test proposed by Claude Code or GPT-4o must run against the live Vite dev server (<code>npm test</code>), assert both the visible UI and the underlying <code>localStorage</code> JSON where relevant, and pass peer review to remove tautological assertions.</li>
+</ul>
+
+<h3>2.2 Adequacy Criterion</h3>
+<p>Testing for this cycle is complete when all of the following hold:</p>
+<ul>
+  <li><b>Functional coverage:</b> All 8 core behaviors in <code>README.md</code> (Add, Edit, Search, Fractional Consume, Restore 1, Remove with confirmation, Edit-mode action locking, and Reload persistence) have positive and boundary/negative tests.</li>
+  <li><b>Structural coverage:</b> Every <i>reachable</i> branch outcome in the state-changing functions <code>load()</code>, <code>newId()</code>, <code>commit()</code>, <code>save()</code>, <code>consume()</code>, <code>adjust()</code>, and the Remove handler is exercised, as recorded by the manual branch trace in Section 4.3. Current result: <b>37 of 40</b> outcomes covered; the remaining 3 are unreachable from the UI and are documented as defensive code.</li>
+  <li><b>Stable, clean build:</b> <code>npm run build</code> (<code>tsc &amp;&amp; vite build</code>) completes with zero TypeScript strict-mode errors, and all <b>32</b> Playwright tests pass in <b>3 consecutive runs</b> (observed: 32/32 passed in each of 3 runs, about 4 seconds per run).</li>
+</ul>
+
+<h3>2.3 Bug Tracking</h3>
+<p>Defects and test gaps are tracked in <b>GitHub Issues and Pull Requests</b> in <code>Alex-Hanley/Group20_PantryPilot_CS_3300</code>. Each entry records: <b>Source</b> (manual black-box, Playwright E2E, branch trace, Claude Code, or GPT-4o ideation), <b>Severity</b> (Critical, Major, Minor), <b>Status</b> (Open → In Progress → Verified → Closed), <b>Assignee</b>, and <b>Resolution</b> (fixing commit and regression test). Defects resolved during this cycle:</p>
+<table>
+  <thead><tr><th>ID</th><th>Defect</th><th>Source</th><th>Severity</th><th>Assignee</th><th>Resolution</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>D-1</td><td>Adding an item threw a <code>TypeError</code> on plain-HTTP LAN origins because <code>crypto.randomUUID</code> is undefined outside secure contexts.</td><td>Traditional white-box review of <code>newId()</code></td><td>Major</td><td>youso</td><td>Commit <code>39a0c2a</code> (PR #4): <code>getRandomValues</code> v4 fallback; regression test <code>ids.spec.ts</code></td><td>Closed</td></tr>
+    <tr><td>D-2</td><td>Restore 1 produced floating-point tails (<code>0.14 + 1 = 1.1400000000000001</code>), so the full displayed amount could not be consumed.</td><td>Claude Code IEEE 754 analysis</td><td>Minor</td><td>youso</td><td>Commit <code>fee02f0</code> (PR #3): <code>roundQuantity</code> in <code>adjust()</code>; regression test <code>restore.spec.ts</code></td><td>Closed</td></tr>
+    <tr><td>D-3</td><td>Saving an edit could overwrite a Consume/Restore made while the edit form was open (stale quantity).</td><td>Edit-mode state-transition testing</td><td>Major</td><td>youso</td><td>Commit <code>1233a8f</code> (PR #5): stock actions disabled while editing; regression test <code>editing.spec.ts</code></td><td>Closed</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Test Strategy</h2>
+<h3>3.1 Testing Process</h3>
+<ul>
+  <li><b>Unit &amp; White-Box Testing:</b> Targets internal state transitions, IEEE 754 edge cases (<code>roundQuantity</code>), saved-data schema validation (<code>load()</code>), storage write failures (<code>commit()</code>), and the UUID fallback branch (<code>newId()</code>) in <code>src/main.tsx</code>. Each branch is reached through a controlled browser input and checked against the branch trace (Section 4.3). Once the helpers are extracted into an exported module, they will also be tested directly at the unit level. Backend sprints will use JUnit 5 and Mockito for service-layer rules (such as Shopping List Reconciliation unit conversions).</li>
+  <li><b>Integration &amp; Persistence Testing (bottom-up):</b> Verifies that React state and <code>localStorage</code> serialization stay in step (<code>commit()</code>): a failed write (<code>QuotaExceededError</code>) must leave the UI, history, and stored JSON unchanged for consume, save, and remove. Backend sprints will use Testcontainers with PostgreSQL to verify Flyway migrations and Spring Data JPA transactions.</li>
+  <li><b>System / Black-Box Testing:</b> Exercises full user journeys in Chromium via Playwright without inspecting internal code, using accessible roles and labels (<code>getByRole</code>, <code>getByLabel</code>), form submissions, confirmation dialogs, and page reloads.</li>
+  <li><b>Regression Testing:</b> Every fixed defect (D-1 to D-3) has a permanent regression test, and the full suite is run on every pull request before merge; GitHub Actions will automate this gate in later sprints.</li>
+  <li><b>Non-Functional Checks:</b> Data integrity under storage failure, safe handling of corrupted data (read-only mode that preserves the raw payload), accessibility of controls via ARIA labels, and suite runtime (about 4 s for 32 tests).</li>
+  <li><b>AI Tool Integration:</b> ChatGPT (GPT-4o) and Claude Code generated black-box equivalence partitions and adversarial inputs (<code>'Infinity'</code>, <code>'abc'</code>, <code>0.3 - 0.1</code>). Claude Code also read <code>src/main.tsx</code> directly to write white-box specs (<code>restore.spec.ts</code>, <code>load.spec.ts</code>) targeting defensive <code>catch</code> blocks, validation predicates, and floating-point boundaries.</li>
+</ul>
+
+<h3>3.2 Technology</h3>
+<ul>
+  <li><b>Playwright (<code>@playwright/test</code> v1.65.1) &amp; Vite (v8.3.8):</b> Browser automation runner configured in <code>playwright.config.ts</code>, which starts the dev server on <code>http://127.0.0.1:5173</code> and runs headless Chromium tests.</li>
+  <li><b>TypeScript Compiler (<code>tsc</code> v7.0.2, <code>strict: true</code>):</b> Static type-checking gate executed via <code>npm run build</code>.</li>
+  <li><b>Browser Evaluation &amp; Fault Hooks:</b> <code>page.evaluate()</code> and <code>page.addInitScript()</code> for <code>localStorage</code> inspection and seeding, <code>Crypto.prototype.randomUUID</code> removal, and <code>Storage.prototype.setItem</code> exception injection; <code>page.on('dialog')</code> to accept or dismiss confirmations.</li>
+  <li><b>Manual Branch Trace &amp; Mutation Checks:</b> A decision-by-decision table of <code>src/main.tsx</code> (Section 4.3) and hand-applied mutations to confirm tests detect faults.</li>
+  <li><b>AI Assistants &amp; Planned CI Stack:</b> Claude Code (via the team proxy) and ChatGPT/GPT-4o for test design and generation; JUnit 5, Mockito, Testcontainers, JaCoCo, and GitHub Actions for the upcoming Java 21 / Spring Boot modules.</li>
+</ul>
+
+<h2>4. Test Cases</h2>
+<p>The suite contains <b>32 Playwright tests in 6 spec files</b>. The rows below group related tests (parameterized loops count as one row with several tests). All were executed on November 22, 2026; actual results are from those runs.</p>
+
+<h3>4.1 Black-Box Testing Cases</h3>
+<p><b>How the cases were derived:</b> (1) each README behavior was listed as a requirement; (2) inputs were split by <b>Equivalence Partitioning</b> (valid quantities vs. negative, zero, non-numeric, non-finite, blank, and over-stock amounts) and <b>Boundary Value Analysis</b> (0, the exact remaining stock, one above it); (3) <b>State-Transition Testing</b> covered Idle → Editing → Saved/Cancelled and Populated → Consumed to 0 → Consume disabled; (4) GPT-4o and Claude Code were prompted with the README to propose further partitions, and every proposal was checked against the real UI labels before being kept.</p>
+<table>
+  <thead><tr><th style="width:6%">Test #</th><th style="width:14%">Requirement / Purpose</th><th style="width:20%">Action / Input</th><th style="width:20%">Expected Result</th><th style="width:15%">Actual Result</th><th style="width:4%">P/F</th><th style="width:21%">AI Utilization &amp; Notes</th></tr></thead>
+  <tbody>
+    <tr><td>BB-01</td><td><b>MMF 1.1:</b> Core CRUD &amp; reload persistence (<code>inventory.spec.ts</code>)</td><td>Add "Rice" (<code>2 kg</code>); consume 1; restore 1; rename to "Brown rice"; reload; search "beans" then "rice"; remove and confirm; reload.</td><td>Stock 2 → 1 → 2 kg; rename persists; search "beans" shows "No matching items."; after removal the pantry is empty and history shows "Removed Brown rice".</td><td>Matched expected UI and stored state across reloads.</td><td class="pass">✓</td><td><b>Traditional.</b> Baseline E2E smoke test written by hand.</td></tr>
+    <tr><td>BB-02</td><td><b>MMF 1.2:</b> Reject negative quantities &amp; disable zero-stock consume (<code>inventory.spec.ts</code>)</td><td>1. Add "Milk" with quantity <code>-1</code>.<br>2. Add "Milk" with quantity <code>0</code>.</td><td>1. Submission blocked; item not added.<br>2. Item added at 0 with Consume button disabled.</td><td>Blocked <code>-1</code>; rendered 0 stock with disabled Consume.</td><td class="pass">✓</td><td><b>Traditional + GPT-4o</b> boundary ideation.</td></tr>
+    <tr><td>BB-03</td><td><b>MMF 1.3:</b> Fractional consumption &amp; exact depletion (<code>consumption.spec.ts</code>)</td><td>Seed "Rice" (<code>2.5 kg</code>). (a) Consume <code>0.5</code> and reload. (b) Fresh item: consume exactly <code>2.5</code>.</td><td>(a) "2 kg" after reload and history "Consumed 0.5 kg of Rice". (b) "0 kg" and Consume disabled.</td><td>Exact decimal stock and history persisted.</td><td class="pass">✓</td><td><b>Claude Code.</b> Covers the <code>amount === quantity</code> boundary.</td></tr>
+    <tr><td>BB-04</td><td><b>MMF 1.4:</b> Reject invalid consumption inputs (<code>consumption.spec.ts</code>)</td><td>With "Rice" (<code>2.5 kg</code>), consume each of <code>'0'</code>, <code>'-1'</code>, <code>'3'</code>, <code>''</code>, <code>'abc'</code>, <code>'Infinity'</code> (6 tests).</td><td>Alert (<code>role="alert"</code>) appears; stock stays "2.5 kg"; stored JSON unchanged.</td><td>All 6 inputs alerted with zero storage change.</td><td class="pass">✓</td><td><b>Only covered by AI (GPT-4o).</b> GPT-4o added the <code>'Infinity'</code> and <code>''</code> partitions.</td></tr>
+    <tr><td>BB-05</td><td><b>MMF 1.5:</b> Edit-mode action locking &amp; cross-item isolation (<code>editing.spec.ts</code>, 4 tests)</td><td>Add "Rice" (<code>2 kg</code>) and "Beans" (<code>3 can</code>); Edit Rice; check Rice actions; consume 1 Beans; save Rice; reload. Also: save an unrelated edit, and cancel an edit.</td><td>Rice Consume/Restore/amount disabled with an "Editing" note; Beans consumes to 2 can and persists after Rice saves; save or cancel re-enables Rice actions.</td><td>Lock prevented stale overwrites and kept the concurrent Beans change.</td><td class="pass">✓</td><td><b>Claude Code.</b> Multi-item state-transition test; regression test for D-3.</td></tr>
+    <tr><td>BB-06</td><td><b>MMF 1.6:</b> Corrupted <code>localStorage</code> protection (<code>inventory.spec.ts</code>)</td><td>Set <code>pantrypilot.inventory.v1</code> to <code>'{invalid'</code> and reload.</td><td>Alert "Saved pantry could not be loaded..."; "Add item" disabled; raw <code>'{invalid'</code> preserved.</td><td>Payload preserved in safe read-only mode.</td><td class="pass">✓</td><td><b>Traditional.</b> <span class="tag">AI didn't cover</span> the safe-mode fallback initially.</td></tr>
+    <tr><td>BB-07</td><td><b>MMF 1.4 / 1.1:</b> Blank input partitions (<code>load.spec.ts</code>, 2 tests)</td><td>(a) Consume amount <code>'   '</code> (spaces). (b) Add an item named <code>'   '</code> with quantity 1, unit kg.</td><td>(a) "Enter a positive amount to consume." and stored JSON unchanged. (b) "Enter a name, unit, location..." and inventory still has 1 item.</td><td>Both rejected; no state change.</td><td class="pass">✓</td><td><b>Only covered by AI (Claude Code).</b> Native <code>required</code> accepts spaces, so the app's own <code>trim()</code> checks are what block these.</td></tr>
+    <tr><td>BB-08</td><td><b>MMF 1.1:</b> Remove confirmation paths (<code>load.spec.ts</code>, 2 tests)</td><td>(a) Click Remove Rice and <i>dismiss</i> the dialog; reload. (b) Edit Rice, then Remove Rice and accept.</td><td>(a) Rice still present, no "Removed Rice" entry. (b) Form resets to "Add a pantry item" with an empty name; "Removed Rice" logged.</td><td>Both behaved as expected.</td><td class="pass">✓</td><td><b>Only covered by AI (Claude Code)</b>, generated from gaps in the branch trace.</td></tr>
+  </tbody>
+</table>
+
+<h3>4.2 White-Box Testing Cases</h3>
+<p>These cases target internal logic paths in <code>src/main.tsx</code>: floating-point normalization (<code>roundQuantity</code>, line 11), saved-data validation (<code>load</code>, lines 13–28), the UUID fallback (<code>newId</code>, lines 41–48), and storage write failure handling (<code>commit</code>, lines 50–62), as reached from <code>save</code> (64–79), <code>consume</code> (81–97), <code>adjust</code> (99–104), and the Remove handler (147–151).</p>
+<table>
+  <thead><tr><th style="width:6%">Test #</th><th style="width:12%">Code Unit / Function</th><th style="width:13%">Purpose</th><th style="width:33%">Test Code Snippet</th><th style="width:14%">Expected / Actual</th><th style="width:4%">P/F</th><th style="width:18%">AI Prompts &amp; Notes</th></tr></thead>
+  <tbody>
+    <tr><td>WB-01</td><td><code>roundQuantity()</code> in <code>consume()</code> (<code>main.tsx:11, 92</code>)</td><td>Verify <code>0.3 - 0.1</code> is stored as <code>0.2</code>, not <code>0.19999999999999998</code>, so the remainder can be fully consumed.</td><td><pre>await page.getByLabel('Quantity', { exact: true }).fill('0.3');
+await page.getByRole('button', { name: 'Save changes' }).click();
+await page.getByLabel('Amount to consume for Rice').fill('0.1');
+await page.getByRole('button', { name: 'Consume Rice', exact: true }).click();
+await expect(inventory.getByText('0.2 kg', { exact: true })).toBeVisible();
+await page.getByLabel('Amount to consume for Rice').fill('0.2');
+await page.getByRole('button', { name: 'Consume Rice', exact: true }).click();
+await expect(inventory.getByText('0 kg', { exact: true })).toBeVisible();</pre></td><td><b>Expected:</b> 0.2 shown and fully consumable.<br><b>Actual:</b> Depleted to 0 kg cleanly.</td><td class="pass">✓</td><td><b>Only generated by AI (Claude Code).</b><br><i>Prompt:</i> "Analyze consume() for IEEE 754 drift."</td></tr>
+    <tr><td>WB-02</td><td><code>roundQuantity()</code> in <code>adjust()</code> (<code>main.tsx:11, 100</code>)</td><td>Verify <code>0.14 + 1</code>, <code>0.36 + 1</code>, and <code>0.57 + 1</code> trim binary tails, in the UI and in storage after reload.</td><td><pre>for (const [start, restored] of [['0.14', '1.14'], ['0.36', '1.36']]) {
+  await addItem(page, 'Salt', start, 'kg');
+  await page.getByRole('button', { name: 'Restore 1 kg of Salt', exact: true }).click();
+  await expect(inventory.getByText(`${restored} kg`, { exact: true })).toBeVisible();
+  // then consume the full restored amount -&gt; 0 kg, no alert
+}
+// Flour 0.57 + 1, reload: stored quantity toBe(1.57)</pre></td><td><b>Expected:</b> Exact 1.14 / 1.36 / 1.57, consumable to 0.<br><b>Actual:</b> All normalized; regression test for D-2.</td><td class="pass">✓</td><td><b>Claude Code.</b><br><i>Prompt:</i> "Test adjust() floating-point +1.0 edge cases."</td></tr>
+    <tr><td>WB-03</td><td><code>commit()</code> <code>catch</code> block (<code>main.tsx:58–61</code>) via <code>consume()</code>, <code>save()</code>, Remove</td><td>Exercise the <code>QuotaExceededError</code> path from all three callers and confirm nothing changes.</td><td><pre>await page.evaluate(() =&gt; {
+  Storage.prototype.setItem = () =&gt; {
+    throw new DOMException('Full', 'QuotaExceededError');
+  };
+});
+await page.getByRole('button', { name: 'Consume Rice', exact: true }).click();
+await expect(page.getByRole('alert')).toContainText('Could not save changes');
+await expect(page.getByText('Consumed 0.5 kg of Rice', { exact: true })).toHaveCount(0);
+// load.spec.ts repeats this for Save changes (edit form stays open)
+// and for Remove (item stays, no "Removed Rice")</pre></td><td><b>Expected:</b> UI, history, and stored JSON unchanged.<br><b>Actual:</b> No phantom history; edit form kept; item kept.</td><td class="pass">✓</td><td><b>Claude Code.</b><br><i>Prompt:</i> "Cover commit() catch block on storage quota error." The save/remove variants were <b>only generated by AI</b>, from the branch trace.</td></tr>
+    <tr><td>WB-04</td><td><code>newId()</code> fallback branch (<code>main.tsx:41–48</code>)</td><td>Cover non-HTTPS origins where <code>crypto.randomUUID</code> is undefined.</td><td><pre>await page.addInitScript(() =&gt; {
+  delete (Crypto.prototype as { randomUUID?: unknown }).randomUUID;
+});
+await addItem(page, 'Beans', '2', 'can');
+await addItem(page, 'Rice', '1', 'kg');
+// read saved items + history ids
+expect(new Set(ids).size).toBe(4);
+for (const id of ids) expect(id).toMatch(uuidV4);</pre></td><td><b>Expected:</b> <code>getRandomValues</code> yields valid v4 UUIDs; no page errors.<br><b>Actual:</b> 4 unique v4 UUIDs; 0 <code>pageerror</code>s.</td><td class="pass">✓</td><td><b>Traditional.</b> <span class="tag">AI didn't generate this test</span> (127.0.0.1 is a secure context, so <code>randomUUID</code> always exists there). Regression test for D-1.</td></tr>
+    <tr><td>WB-05</td><td><code>load()</code> schema validator (<code>main.tsx:18–23</code>)</td><td>Verify JSON that parses but is structurally invalid is rejected: negative quantity, non-array <code>items</code>, non-string history <code>id</code> (3 tests), and valid JSON still loads (1 test).</td><td><pre>const invalidPayloads = {
+  'a negative item quantity': { items: [{ ...item, quantity: -5 }], history: [] },
+  'a non-array items field': { items: {}, history: [] },
+  'a history entry with a non-string id':
+    { items: [item], history: [{ id: 1, text: 'x', time: 't' }] },
+};
+// for each: seed localStorage, reload, then
+await expect(page.getByRole('alert')).toContainText('Saved pantry could not be loaded');
+await expect(page.getByRole('button', { name: 'Add item', exact: true })).toBeDisabled();
+expect(await page.evaluate(key =&gt; localStorage.getItem(key), storageKey)).toBe(raw);</pre></td><td><b>Expected:</b> Safe-mode alert, changes disabled, raw payload preserved; valid data loads with no alert.<br><b>Actual:</b> As expected. Mutation check: removing <code>i.quantity &gt;= 0</code> makes the negative-quantity test fail.</td><td class="pass">✓</td><td><b>Only generated by AI.</b> GPT-4o listed the payloads (<i>Prompt:</i> "List JSON payloads passing JSON.parse() that fail load()."); Claude Code wrote <code>load.spec.ts</code> from them.</td></tr>
+    <tr class="grey"><td>WB-06</td><td><code>adjust()</code> guard (<code>main.tsx:101</code>) and <code>commit()</code> <code>initial.error</code> guard (<code>main.tsx:51</code>)</td><td>Defensive branches.</td><td>Not performed.</td><td>Unreachable from the UI: Restore always adds +1 to a validated, non-negative quantity, and in safe mode no items render, so no action can call <code>commit()</code>.</td><td class="na">—</td><td>Documented in the branch trace; will be unit tested directly once the helpers are exported.</td></tr>
+  </tbody>
+</table>
+
+<h3>4.3 Branch Coverage Trace (<code>src/main.tsx</code>)</h3>
+<p>Each decision in the state-changing functions was listed by hand, and each outcome was matched to a test that exercises it. "Trad." means the traditionally written specs (<code>inventory.spec.ts</code>, <code>ids.spec.ts</code>); "AI" means the AI-assisted specs (<code>consumption.spec.ts</code>, <code>editing.spec.ts</code>, <code>restore.spec.ts</code>, <code>load.spec.ts</code>).</p>
+<table>
+  <thead><tr><th style="width:15%">Function (line)</th><th style="width:33%">Decision</th><th style="width:26%">Covering tests (true / false)</th><th style="width:9%">Trad.</th><th style="width:8%">AI</th><th style="width:9%">Total</th></tr></thead>
+  <tbody>
+    <tr><td><code>load</code> (16)</td><td>No saved data</td><td>Every first page load / any reload with data</td><td>2/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>load</code> (17)</td><td><code>JSON.parse</code> throws</td><td>BB-06 / all reloads</td><td>2/2</td><td>1/2</td><td>2/2</td></tr>
+    <tr><td><code>load</code> (18)</td><td><code>items</code> or <code>history</code> not an array</td><td>WB-05 non-array / valid reloads</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>load</code> (19–21)</td><td>An item fails the shape or quantity check</td><td>WB-05 negative quantity / valid reloads</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>load</code> (22–23)</td><td>A history entry fails the shape check</td><td>WB-05 history id / valid reloads</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>newId</code> (42)</td><td><code>randomUUID</code> available</td><td>All tests / WB-04</td><td>2/2</td><td>1/2</td><td>2/2</td></tr>
+    <tr class="grey"><td><code>commit</code> (51)</td><td>Saved data failed to load</td><td>Unreachable from UI (WB-06) / all writes</td><td>1/2</td><td>1/2</td><td>1/2</td></tr>
+    <tr><td><code>commit</code> (53–61)</td><td><code>setItem</code> throws</td><td>WB-03 / all successful writes</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>save</code> (67–68)</td><td>Form input invalid</td><td>BB-07b / all adds and edits</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>save</code> (72)</td><td>Editing: keep id vs. new id</td><td>BB-01 rename / BB-01 add</td><td>2/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>save</code> (74)</td><td>Editing: replace vs. append</td><td>BB-01 rename / BB-01 add</td><td>2/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>save</code> (75)</td><td><code>commit</code> succeeded</td><td>BB-01 / WB-03 save variant</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>consume</code> (84)</td><td>Amount blank, non-numeric, non-finite, or ≤ 0</td><td>BB-04, BB-07a / BB-03</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>consume</code> (88)</td><td>Amount exceeds stock</td><td>BB-04 <code>'3'</code> / BB-03</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td><code>consume</code> (93)</td><td><code>commit</code> succeeded</td><td>BB-03 / WB-03</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr class="grey"><td><code>adjust</code> (101)</td><td>Result negative or non-finite</td><td>Unreachable (WB-06) / WB-02</td><td>1/2</td><td>1/2</td><td>1/2</td></tr>
+    <tr class="grey"><td><code>adjust</code> (103)</td><td><code>delta &lt; 0</code> (history wording)</td><td>Unreachable: only +1 is used / WB-02</td><td>1/2</td><td>1/2</td><td>1/2</td></tr>
+    <tr><td>Remove (148)</td><td>User confirms dialog</td><td>BB-01 / BB-08a</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td>Remove (148)</td><td><code>commit</code> succeeded</td><td>BB-01 / WB-03 remove variant</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td>Remove (148)</td><td>Removed item was being edited</td><td>BB-08b / BB-01</td><td>1/2</td><td>2/2</td><td>2/2</td></tr>
+    <tr><td colspan="3"><b>Total branch outcomes (40; 3 unreachable)</b></td><td><b>25/40</b><br>(62.5%)</td><td><b>35/40</b><br>(87.5%)</td><td><b>37/40</b><br>(100% of reachable)</td></tr>
+  </tbody>
+</table>
+
+<h2>5. AI Integration and Comparative Analysis</h2>
+<h3>5.1 Overview of AI Tool Impact</h3>
+<p>Using <b>Claude Code</b> (for white-box branch inspection and Playwright code generation) and <b>ChatGPT/GPT-4o</b> (for black-box equivalence partitioning and adversarial input ideation) cut initial test authoring time by roughly <b>two thirds</b> by the team's own estimates. The AI tools also found IEEE 754 floating-point drift (<code>0.3 - 0.1</code> and <code>0.14 + 1</code>) that would otherwise block exact-remainder consumption. Measured by the branch trace, the AI-assisted specs cover 35 of 40 branch outcomes in <code>src/main.tsx</code>, compared with 25 of 40 for the traditionally written specs. Every AI-only test in <code>load.spec.ts</code> came from asking Claude Code to close the gaps the trace exposed.</p>
+<p>The AI tools also showed limits that needed human intervention: (1) neither tool tested the non-HTTPS <code>crypto.randomUUID</code> fallback in <code>newId()</code>, because headless Chromium on <code>127.0.0.1</code> runs in a secure context, so the bug (D-1) only appeared on a real LAN device; (2) neither initially proposed preserving corrupted saved data (BB-06); (3) early AI-generated locators used unscoped text queries (e.g., <code>getByText('2 kg')</code>) that matched activity history entries until refactored to the Inventory region; and (4) GPT-4o sometimes invented button names (e.g., "Delete" instead of "Remove"). AI suggestions were most useful once a human had supplied the real labels and an explicit coverage target.</p>
+
+<h3>5.2 Detailed Comparative Analysis</h3>
+<p class="small">Development times are the team's self-reported estimates. Test counts, coverage, and pass rates come from the November 22, 2026 runs and the branch trace in Section 4.3.</p>
+<h4>A. Black-Box Testing Comparison</h4>
+<table>
+  <thead><tr><th style="width:15%">Metric</th><th style="width:22%">Traditional Method</th><th style="width:24%">AI-Enhanced (GPT-4o + Claude Code)</th><th style="width:14%">Difference</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><b>Development Time</b></td><td>~90 min to derive partitions by hand and write <code>inventory.spec.ts</code> (3 tests).</td><td>~25 min to prompt, generate, and refine <code>consumption.spec.ts</code> and <code>editing.spec.ts</code> (14 tests).</td><td><b>−65 min (−72%)</b></td><td>AI quickly scaffolded Playwright hooks and parameterized loops. The AI specs also produced far more tests per minute.</td></tr>
+    <tr><td><b>Defects Detected</b></td><td>Caught 2 UI validation issues during the prototype build (negative stock and the zero-stock Consume button), and established that a corrupted save must be preserved, not overwritten (BB-06).</td><td>Caught 1 edge-case gap: <code>'Infinity'</code>, empty, and whitespace amounts, which require the <code>Number.isFinite</code> and <code>trim()</code> guards (BB-04, BB-07).</td><td><b>+1 edge-case guard</b></td><td>GPT-4o systematically listed JavaScript type-coercion edge cases; humans supplied the data-safety requirement.</td></tr>
+    <tr><td><b>Test Coverage</b></td><td>6 of 8 README behaviors (no fractional consume or edit locking).</td><td>Added the 2 missing behaviors (fractional consume, edit locking with cross-item isolation) plus both confirmation-dialog paths; 8 of 8 when combined with the traditional suite.</td><td><b>+2 behaviors (+25%)</b></td><td>AI was strong at multi-step state combinations across items.</td></tr>
+    <tr><td><b>Quality of Edge Cases</b></td><td>Strong on domain failure modes (corrupted <code>localStorage</code> preservation).</td><td>Strong on input permutations (<code>0</code>, <code>-1</code>, <code>3</code>, <code>''</code>, <code>'   '</code>, <code>'abc'</code>, <code>'Infinity'</code>).</td><td><b>Complementary</b></td><td>Combining human domain knowledge with AI enumeration gave the most complete set.</td></tr>
+    <tr><td><b>Ease of Maintenance</b></td><td>High: shared <code>addItem()</code> helper and role-based locators kept diffs small.</td><td>Moderate as generated (repeated form-fill steps); high after human refactoring.</td><td><b>Equal after refactor</b></td><td>Prompting the AI to reuse existing helpers improved maintainability.</td></tr>
+  </tbody>
+</table>
+
+<h4>B. White-Box Testing Comparison</h4>
+<table>
+  <thead><tr><th style="width:15%">Metric</th><th style="width:22%">Traditional Method</th><th style="width:24%">AI-Enhanced (Claude Code)</th><th style="width:14%">Difference</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><b>Development Time</b></td><td>~60 min to trace <code>src/main.tsx</code> branches and write <code>ids.spec.ts</code> (2 tests).</td><td>~20 min to analyze <code>roundQuantity()</code> and <code>commit()</code> and build <code>restore.spec.ts</code> (3 tests); <code>load.spec.ts</code> (10 tests) was generated from the trace in a single session.</td><td><b>−40 min (−67%)</b></td><td>Claude Code immediately mapped <code>catch</code> blocks to <code>page.evaluate</code> fault injection.</td></tr>
+    <tr><td><b>Defects Detected</b></td><td>Non-HTTPS <code>crypto.randomUUID</code> <code>TypeError</code> on LAN devices (D-1).</td><td>Floating-point drift after Restore (D-2).</td><td><b>1 each</b></td><td>The human caught the environment API gap; AI caught IEEE 754 drift.</td></tr>
+    <tr><td><b>Test Coverage</b></td><td>25 of 40 branch outcomes (62.5%) of <code>src/main.tsx</code>; misses <code>setItem</code> failures, blank input, and invalid-schema branches.</td><td>35 of 40 (87.5%); misses only the <code>JSON.parse</code> failure and UUID fallback (covered traditionally) and the 3 unreachable outcomes.</td><td><b>+10 outcomes (+25 pts)</b></td><td>Combined: 37/40, i.e. every reachable outcome. AI targeted the defensive branches that are usually left untested.</td></tr>
+    <tr><td><b>Quality of Edge Cases</b></td><td>High for browser security context (<code>delete Crypto.prototype.randomUUID</code>).</td><td>High for runtime fault injection (<code>QuotaExceededError</code>) and schema-violating payloads; WB-05 confirmed by a mutation check.</td><td><b>Deeper fault coverage</b></td><td>AI readily wrote browser API overrides to trigger error handlers.</td></tr>
+    <tr><td><b>Ease of Maintenance</b></td><td>High: clear RFC 4122 regex assertions and explicit JSON inspection.</td><td>High: concise table-driven loops (<code>[['0.14', '1.14'], ['0.36', '1.36']]</code>, named payload maps).</td><td><b>Comparable</b></td><td>Data-driven tests generated by Claude Code explain themselves through their case names.</td></tr>
+  </tbody>
+</table>
+
+<h3>5.3 AI Tool Utilization</h3>
+<ul>
+  <li><b>Claude Code (via Team 20 proxy):</b>
+    <ul>
+      <li><i>Features that helped:</i> full-file context across <code>src/main.tsx</code> and <code>playwright.config.ts</code>, so it could match tests to specific branches; it ran the suite itself and fixed failing locators; it wrote <code>consumption.spec.ts</code>, <code>editing.spec.ts</code>, <code>restore.spec.ts</code>, and <code>load.spec.ts</code>.</li>
+      <li><i>Challenges:</i> early selectors collided between inventory badges and activity history ("2 kg" appears in both); fixed by scoping to <code>getByRole('region', { name: 'Inventory' })</code>. It could not see that a LAN device lacks <code>randomUUID</code> until told.</li>
+      <li><i>Impact on adequacy and efficiency:</i> given the manual branch trace as a target, it closed the last reachable gaps (save/remove storage failures, schema branches, dialog dismissal), bringing combined coverage to every reachable branch outcome.</li>
+    </ul>
+  </li>
+  <li><b>ChatGPT / GPT-4o:</b>
+    <ul>
+      <li><i>Features that helped:</i> fast requirement decomposition and equivalence partitioning from the README, plus adversarial input lists (<code>'Infinity'</code>, blank strings, malformed and schema-violating JSON).</li>
+      <li><i>Challenges:</i> without access to the code it sometimes invented button names (e.g., "Delete" instead of "Remove"); fixed by pasting the exact <code>aria-label</code> strings from <code>src/main.tsx</code> and running every proposal in Playwright.</li>
+      <li><i>Impact:</i> broadened black-box input partitions (BB-04) and supplied the payload list for WB-05; did not produce runnable tests on its own.</li>
+    </ul>
+  </li>
+</ul>
+
+<h2>6. Team Contribution</h2>
+<table>
+  <thead><tr><th style="width:17%">Team Member</th><th style="width:17%">Testing Role</th><th style="width:21%">Approach &amp; Tools</th><th>Specific Contributions</th></tr></thead>
+  <tbody>
+    <tr><td><b>Alexander Hanley</b></td><td>Black-Box Lead (Traditional &amp; AI-Assisted)</td><td>Traditional black-box (Playwright E2E, equivalence partitioning); AI-assisted black-box (GPT-4o, Claude Code)</td><td>Set up the repository, Vite, and Playwright configuration. Wrote <code>inventory.spec.ts</code> (BB-01, BB-02, BB-06: CRUD, search, reload persistence, negative quantities, corrupted-storage safe mode) and <code>consumption.spec.ts</code> (BB-03, BB-04, WB-01, WB-03: fractional consumption, invalid inputs, floating-point subtraction, storage failure).</td></tr>
+    <tr><td><b>youso</b></td><td>White-Box Lead &amp; Defect Fixes</td><td>Traditional white-box (fault injection, Playwright); AI-assisted white-box and state testing (Claude Code)</td><td>Fixed and regression-tested defects D-1 to D-3. Wrote <code>ids.spec.ts</code> (WB-04: non-HTTPS <code>newId()</code> fallback), <code>restore.spec.ts</code> (WB-02: IEEE 754 Restore rounding), and <code>editing.spec.ts</code> (BB-05: edit-mode locking and cross-item isolation).</td></tr>
+    <tr><td><b>Calvin DiPrete</b></td><td>Integration, Review &amp; Test Plan Lead</td><td>Manual branch trace, mutation checks, AI-assisted white-box (Claude Code), code review</td><td>Reviewed and merged PRs #1, #3, #4, and #5. Built the branch coverage trace (Section 4.3), directed Claude Code to generate <code>load.spec.ts</code> (WB-05, BB-07, BB-08, and the save/remove variants of WB-03), ran the mutation check and the 3-run regression gate, and revised this test plan.</td></tr>
+  </tbody>
+</table>
+
+</body>
+</html>
