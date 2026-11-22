@@ -1,26 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import { checkConsumption, createId, isPantry, roundQuantity, type Item, type Pantry } from './pantry';
 
-type Item = { id: string; name: string; quantity: number; unit: string; category: string; location: string };
-type Pantry = { items: Item[]; history: { id: string; text: string; time: string }[] };
 const storageKey = 'pantrypilot.inventory.v1';
 const empty: Pantry = { items: [], history: [] };
 const blank = { name: '', quantity: '1', unit: 'each', category: '', location: 'Pantry' };
-// Trim floating-point noise (e.g. 0.14 + 1 = 1.1400000000000001) from stored quantities.
-const roundQuantity = (value: number) => Number(value.toPrecision(15));
 
 function load(): { pantry: Pantry; error: string } {
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return { pantry: empty, error: '' };
     const data = JSON.parse(raw);
-    if (!Array.isArray(data.items) || !Array.isArray(data.history)
-      || !data.items.every((i: Item) => i && typeof i.id === 'string'
-        && ['name', 'unit', 'category', 'location'].every(k => typeof i[k as keyof Item] === 'string')
-        && Number.isFinite(i.quantity) && i.quantity >= 0)
-      || !data.history.every((h: Pantry['history'][number]) => h && typeof h.id === 'string'
-        && typeof h.text === 'string' && typeof h.time === 'string')) throw new Error();
+    if (!isPantry(data)) throw new Error();
     return { pantry: data, error: '' };
   } catch {
     return { pantry: empty, error: 'Saved pantry could not be loaded. Reload after checking browser storage; changes are disabled to protect saved data.' };
@@ -36,16 +28,7 @@ function App() {
   const [query, setQuery] = useState('');
   const [amounts, setAmounts] = useState<Record<string, string>>({});
 
-// crypto.randomUUID only exists on HTTPS and localhost. Over plain HTTP (e.g. a phone
-// on the LAN hitting `vite --host`) build a v4 UUID from getRandomValues instead.
-  function newId(): string {
-    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
+  const newId = () => createId(crypto);
 
   function commit(items: Item[], text: string) {
     if (initial.error) return false;
@@ -79,19 +62,14 @@ function App() {
   }
 
   function consume(item: Item) {
-    const raw = (amounts[item.id] ?? '1').trim();
-    const amount = Number(raw);
-    if (!raw || !Number.isFinite(amount) || amount <= 0) {
-      setError('Enter a positive amount to consume.');
+    const result = checkConsumption(amounts[item.id] ?? '1', item);
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
-    if (amount > item.quantity) {
-      setError(`Cannot consume more than ${item.quantity} ${item.unit} of ${item.name}.`);
-      return;
-    }
-    const quantity = roundQuantity(item.quantity - amount);
+    const quantity = result.remaining;
     if (commit(pantry.items.map(i => i.id === item.id ? { ...i, quantity } : i),
-      `Consumed ${amount} ${item.unit} of ${item.name}`)) {
+      `Consumed ${result.amount} ${item.unit} of ${item.name}`)) {
       setAmounts(current => ({ ...current, [item.id]: '1' }));
     }
   }

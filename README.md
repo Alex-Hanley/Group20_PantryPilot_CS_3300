@@ -43,8 +43,13 @@ shared-household persistence are planned follow-up work.
 npm run build
 npx playwright install chromium
 npm test
+npm run test:unit
+npm run test:coverage
 ```
 
 The build type-checks TypeScript and creates the production bundle in `dist/`.
 Browser tests cover the inventory workflow, reload persistence, quantity
 validation, decimal remainders, failed storage writes, and invalid saved data.
+Vitest unit tests in `src/*.test.ts` cover the pure logic in `src/pantry.ts`
+(quantity rounding, saved-data validation, ID generation, and consume-amount
+checks); `npm run test:coverage` reports V8 coverage for that module.
