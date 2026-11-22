@@ -36,9 +36,20 @@ function App() {
   const [query, setQuery] = useState('');
   const [amounts, setAmounts] = useState<Record<string, string>>({});
 
+// crypto.randomUUID only exists on HTTPS and localhost. Over plain HTTP (e.g. a phone
+// on the LAN hitting `vite --host`) build a v4 UUID from getRandomValues instead.
+  function newId(): string {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
   function commit(items: Item[], text: string) {
     if (initial.error) return false;
-    const next = { items, history: [{ id: crypto.randomUUID(), text, time: new Date().toISOString() }, ...pantry.history] };
+    const next = { items, history: [{ id: newId(), text, time: new Date().toISOString() }, ...pantry.history] };
     try {
       localStorage.setItem(storageKey, JSON.stringify(next));
       setPantry(next);
@@ -58,7 +69,7 @@ function App() {
       setError('Enter a name, unit, location, and a quantity of zero or more.');
       return;
     }
-    const item: Item = { id: editing ?? crypto.randomUUID(), name: form.name.trim(), quantity,
+    const item: Item = { id: editing ?? newId(), name: form.name.trim(), quantity,
       unit: form.unit.trim(), category: form.category.trim(), location: form.location.trim() };
     const items = editing ? pantry.items.map(i => i.id === editing ? item : i) : [...pantry.items, item];
     if (commit(items, `${editing ? 'Updated' : 'Added'} ${item.name}: ${quantity} ${item.unit}`)) {
