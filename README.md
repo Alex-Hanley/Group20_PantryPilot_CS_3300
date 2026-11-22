@@ -23,6 +23,8 @@ Open the local URL printed by Vite.
 - Consume a positive custom quantity, including decimals, up to the amount in stock.
 - Restore one unit; edit for other inventory adjustments.
 - Remove items with confirmation and review the activity history.
+- Consume and Restore are paused for an item while its edit form is open, so saving
+  the edit cannot overwrite a stock change made in the meantime.
 - Keep inventory and history across reloads using browser local storage.
 
 Consumption rejects blank, nonnumeric, non-finite, zero, negative, and over-stock amounts.
