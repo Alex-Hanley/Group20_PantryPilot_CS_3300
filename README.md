@@ -29,7 +29,7 @@ Open the local URL printed by Vite.
 
 Consumption rejects blank, nonnumeric, non-finite, zero, negative, and over-stock amounts.
 Successful consumption records the amount and unit in activity history. Decimal
-remainders are normalized to 15 significant digits for ordinary pantry quantities;
+results are normalized to 15 significant digits for ordinary pantry quantities;
 this prototype is not intended for arbitrary-precision measurement.
 Quantities cannot be negative. Items begin empty; no sample data is inserted.
 This is a single-browser prototype, not the complete shared-household MMF.

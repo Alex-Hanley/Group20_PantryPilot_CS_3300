@@ -7,6 +7,8 @@ type Pantry = { items: Item[]; history: { id: string; text: string; time: string
 const storageKey = 'pantrypilot.inventory.v1';
 const empty: Pantry = { items: [], history: [] };
 const blank = { name: '', quantity: '1', unit: 'each', category: '', location: 'Pantry' };
+// Trim floating-point noise (e.g. 0.14 + 1 = 1.1400000000000001) from stored quantities.
+const roundQuantity = (value: number) => Number(value.toPrecision(15));
 
 function load(): { pantry: Pantry; error: string } {
   try {
@@ -76,7 +78,7 @@ function App() {
       setError(`Cannot consume more than ${item.quantity} ${item.unit} of ${item.name}.`);
       return;
     }
-    const quantity = Number((item.quantity - amount).toPrecision(15));
+    const quantity = roundQuantity(item.quantity - amount);
     if (commit(pantry.items.map(i => i.id === item.id ? { ...i, quantity } : i),
       `Consumed ${amount} ${item.unit} of ${item.name}`)) {
       setAmounts(current => ({ ...current, [item.id]: '1' }));
@@ -84,7 +86,7 @@ function App() {
   }
 
   function adjust(item: Item, delta: number) {
-    const quantity = item.quantity + delta;
+    const quantity = roundQuantity(item.quantity + delta);
     if (quantity < 0 || !Number.isFinite(quantity)) return;
     commit(pantry.items.map(i => i.id === item.id ? { ...i, quantity } : i),
       `${delta < 0 ? 'Consumed' : 'Restored'} 1 ${item.unit} of ${item.name}`);
